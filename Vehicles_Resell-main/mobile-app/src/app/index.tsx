@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/ui/primary-button';
@@ -27,11 +27,19 @@ export default function OnboardingScreen() {
           </Text>
         </View>
 
-        <PrimaryButton
-          label="Get started"
-          onPress={() => router.replace('/(tabs)/' as never)}
-          style={styles.button}
-        />
+        <View style={styles.actions}>
+          <PrimaryButton
+            label="Get started"
+            onPress={() => router.push('/register' as never)}
+            style={styles.button}
+          />
+
+          <Pressable onPress={() => router.push('/login' as never)} hitSlop={8}>
+            <Text style={styles.loginPrompt}>
+              Already have an account? <Text style={styles.loginLink}>Login</Text>
+            </Text>
+          </Pressable>
+        </View>
       </SafeAreaView>
     </View>
   );
@@ -101,7 +109,20 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     fontWeight: '400',
   },
+  actions: {
+    gap: Spacing.three,
+  },
+  loginPrompt: {
+    color: 'rgba(255,255,255,0.72)',
+    fontSize: 15,
+    fontWeight: '400',
+    textAlign: 'center',
+  },
+  loginLink: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
   button: {
-    marginTop: Spacing.two,
+    width: '100%',
   },
 });
