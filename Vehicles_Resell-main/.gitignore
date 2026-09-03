@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Only mobile-app has package.json — ignore stray lockfile at repo root unless you add a root package.json
+!/mobile-app/package-lock.json
+
+# Expo / React Native
+.expo/
+dist/
+web-build/
+*.apk
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env*.local
+
+# Logs
+npm-debug.*
+*.log
+
+# IDE
+.idea/
+.vscode/
+
+# Duplicate/old project copies (remove these folders locally if not needed)
+Vehicle_Reselling_App/
+Vehicles_Reselling_App/
+vehicles-Reselling-App/
