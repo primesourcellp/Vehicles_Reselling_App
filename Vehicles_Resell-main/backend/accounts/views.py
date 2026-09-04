@@ -98,10 +98,38 @@ class RegisterVerifyOTPView(APIView):
 
         return Response(
             {
-                'message': 'Mobile verified successfully.',
+                'message': 'Email verified successfully.',
                 'user': UserSerializer(user).data,
                 'tokens': tokens_for_user(user),
             }
+        )
+
+
+class RegisterResendOTPView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = OTPRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        mobile = serializer.validated_data['mobile']
+
+        try:
+            user = User.objects.get(mobile=mobile)
+        except User.DoesNotExist:
+            return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if user.is_mobile_verified:
+            return Response(
+                {'detail': 'Account already verified. Please log in.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not user.is_active:
+            return Response({'detail': 'Account is inactive.'}, status=status.HTTP_403_FORBIDDEN)
+
+        otp = create_otp(mobile, OTPPurpose.REGISTER)
+        send_otp_email(user.email, otp.code, OTPPurpose.REGISTER, user.full_name)
+        return Response(
+            otp_payload(otp, 'OTP resent to your email.', email=user.email)
         )
 
 

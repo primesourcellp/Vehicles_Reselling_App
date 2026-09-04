@@ -13,21 +13,39 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { Radius, Spacing } from '@/constants/theme';
+import { ApiError } from '@/lib/api';
+import {
+  requestLoginOtp,
+  resendRegisterOtp,
+  storeSession,
+  verifyLoginOtp,
+  verifyRegisterOtp,
+} from '@/lib/auth-api';
 
 const CODE_LENGTH = 6;
 
 export default function VerifyScreen() {
-  const { phone, mode, email } = useLocalSearchParams<{
+  const { phone, mode, email, devOtp } = useLocalSearchParams<{
     phone?: string;
     mode?: string;
     email?: string;
+    devOtp?: string;
   }>();
   const [code, setCode] = useState<string[]>(Array(CODE_LENGTH).fill(''));
   const [error, setError] = useState('');
+  const [info, setInfo] = useState(
+    typeof devOtp === 'string' && devOtp ? `Dev OTP: ${devOtp}` : '',
+  );
+  const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
   const inputs = useRef<(TextInputType | null)[]>([]);
 
   const isLogin = mode === 'login';
-  const destination = email?.trim() || phone?.trim() || 'your email';
+  const mobile = typeof phone === 'string' ? phone : '';
+  const destination =
+    (typeof email === 'string' && email.trim()) ||
+    mobile ||
+    'your email';
 
   const updateDigit = (index: number, value: string) => {
     const digit = value.replace(/\D/g, '').slice(-1);
@@ -47,13 +65,65 @@ export default function VerifyScreen() {
     }
   };
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
+    if (loading) return;
+
     const otp = code.join('');
     if (otp.length < CODE_LENGTH) {
       setError('Enter the 6-digit verification code.');
       return;
     }
-    router.replace('/(tabs)/' as never);
+    if (!mobile) {
+      setError('Missing mobile number. Go back and try again.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError('');
+      const result = isLogin
+        ? await verifyLoginOtp(mobile, otp)
+        : await verifyRegisterOtp(mobile, otp);
+      storeSession(result.tokens);
+      router.replace('/(tabs)/' as never);
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : 'Unable to reach the server. Is the backend running?';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (resending || !mobile) return;
+
+    try {
+      setResending(true);
+      setError('');
+      setCode(Array(CODE_LENGTH).fill(''));
+      inputs.current[0]?.focus();
+
+      const result = isLogin
+        ? await requestLoginOtp(mobile)
+        : await resendRegisterOtp(mobile);
+
+      setInfo(
+        result.dev_otp
+          ? `OTP resent. Dev OTP: ${result.dev_otp}`
+          : 'OTP resent to your email.',
+      );
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : 'Unable to resend OTP. Check the backend is running.';
+      setError(message);
+    } finally {
+      setResending(false);
+    }
   };
 
   return (
@@ -90,23 +160,25 @@ export default function VerifyScreen() {
           ))}
         </View>
 
+        {info ? <Text style={styles.info}>{info}</Text> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <PrimaryButton
-          label={isLogin ? 'Verify & login' : 'Verify & continue'}
+          label={
+            loading
+              ? 'Verifying…'
+              : isLogin
+                ? 'Verify & login'
+                : 'Verify & continue'
+          }
           onPress={handleVerify}
           style={styles.button}
         />
 
-        <Pressable
-          onPress={() => {
-            setCode(Array(CODE_LENGTH).fill(''));
-            setError('');
-            inputs.current[0]?.focus();
-          }}
-          hitSlop={8}>
+        <Pressable onPress={handleResend} hitSlop={8} disabled={resending}>
           <Text style={styles.resend}>
-            Didn&apos;t get a code? <Text style={styles.resendLink}>Resend OTP</Text>
+            Didn&apos;t get a code?{' '}
+            <Text style={styles.resendLink}>{resending ? 'Sending…' : 'Resend OTP'}</Text>
           </Text>
         </Pressable>
       </SafeAreaView>
@@ -168,6 +240,10 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  info: {
+    color: 'rgba(255,255,255,0.72)',
+    fontSize: 14,
   },
   error: {
     color: '#F2555A',

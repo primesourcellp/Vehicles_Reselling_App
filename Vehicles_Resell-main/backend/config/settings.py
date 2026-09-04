@@ -23,10 +23,14 @@ ALLOWED_HOSTS = [
     host.strip()
     for host in os.getenv(
         'DJANGO_ALLOWED_HOSTS',
-        'localhost,127.0.0.1,0.0.0.0,10.0.2.2',
+        'localhost,127.0.0.1,0.0.0.0,10.0.2.2,192.168.1.45',
     ).split(',')
     if host.strip()
 ]
+
+# Dev convenience: allow any host when DEBUG is on (needed for LAN phone testing)
+if DEBUG and '*' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('*')
 
 INSTALLED_APPS = [
     'django.contrib.admin',

@@ -15,12 +15,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { Radius, Spacing } from '@/constants/theme';
+import { ApiError } from '@/lib/api';
+import { loginWithPassword, requestLoginOtp, storeSession } from '@/lib/auth-api';
 
 type LoginMethod = 'otp' | 'email' | 'mobile';
 
 const METHODS: { id: LoginMethod; label: string }[] = [
-  { id: 'otp', label: 'Mobile OTP' },
-  { id: 'email', label: 'Email' },
+  { id: 'otp', label: 'Email OTP' },
+  { id: 'email', label: 'Email + PIN' },
   { id: 'mobile', label: 'Mobile + PIN' },
 ];
 
@@ -30,37 +32,66 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    if (method === 'otp') {
-      if (mobile.replace(/\D/g, '').length < 10) {
-        setError('Enter a valid 10-digit mobile number.');
+  const handleLogin = async () => {
+    if (loading) return;
+
+    try {
+      setLoading(true);
+      setError('');
+
+      if (method === 'otp') {
+        if (mobile.replace(/\D/g, '').length < 10) {
+          setError('Enter a valid 10-digit mobile number.');
+          return;
+        }
+        const result = await requestLoginOtp(mobile.trim());
+        router.push({
+          pathname: '/verify' as never,
+          params: {
+            phone: result.mobile,
+            email: result.email || '',
+            mode: 'login',
+            ...(result.dev_otp ? { devOtp: result.dev_otp } : {}),
+          },
+        });
         return;
       }
-      setError('');
-      router.push({
-        pathname: '/verify' as never,
-        params: { phone: mobile.trim(), mode: 'login' },
+
+      if (method === 'email') {
+        if (!email.trim() || !password) {
+          setError('Enter email and password.');
+          return;
+        }
+        const result = await loginWithPassword({
+          email: email.trim(),
+          password,
+        });
+        storeSession(result.tokens);
+        router.replace('/(tabs)/' as never);
+        return;
+      }
+
+      if (!mobile.trim() || !password) {
+        setError('Enter mobile number and password / PIN.');
+        return;
+      }
+      const result = await loginWithPassword({
+        mobile: mobile.trim(),
+        password,
       });
-      return;
-    }
-
-    if (method === 'email') {
-      if (!email.trim() || !password) {
-        setError('Enter email and password.');
-        return;
-      }
-      setError('');
+      storeSession(result.tokens);
       router.replace('/(tabs)/' as never);
-      return;
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : 'Unable to reach the server. Is the backend running?';
+      setError(message);
+    } finally {
+      setLoading(false);
     }
-
-    if (!mobile.trim() || !password) {
-      setError('Enter mobile number and password / PIN.');
-      return;
-    }
-    setError('');
-    router.replace('/(tabs)/' as never);
   };
 
   return (
@@ -82,8 +113,8 @@ export default function LoginScreen() {
             <View style={styles.copy}>
               <Text style={styles.title}>Welcome back</Text>
               <Text style={styles.subtitle}>
-                Recommended: sign in with mobile number and OTP. Email or mobile with password are
-                also available.
+                Recommended: enter your mobile number — we email a one-time code to your registered
+                address. Email or mobile with password are also available.
               </Text>
             </View>
 
@@ -145,7 +176,15 @@ export default function LoginScreen() {
               {error ? <Text style={styles.error}>{error}</Text> : null}
 
               <PrimaryButton
-                label={method === 'otp' ? 'Send OTP' : 'Login'}
+                label={
+                  loading
+                    ? method === 'otp'
+                      ? 'Sending…'
+                      : 'Logging in…'
+                    : method === 'otp'
+                      ? 'Send email OTP'
+                      : 'Login'
+                }
                 onPress={handleLogin}
                 style={styles.button}
               />

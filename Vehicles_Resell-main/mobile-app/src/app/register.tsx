@@ -15,6 +15,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { Radius, Spacing } from '@/constants/theme';
+import { ApiError } from '@/lib/api';
+import { registerAccount } from '@/lib/auth-api';
 
 export default function RegisterScreen() {
   const [fullName, setFullName] = useState('');
@@ -27,8 +29,11 @@ export default function RegisterScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleCreateAccount = () => {
+  const handleCreateAccount = async () => {
+    if (loading) return;
+
     if (
       !fullName.trim() ||
       !mobile.trim() ||
@@ -48,7 +53,6 @@ export default function RegisterScreen() {
       setError('Enter a valid 6-digit PIN code.');
       return;
     }
-    // Password / PIN is optional — only validate when the user provides one
     if (password || confirmPassword) {
       if (password.length < 6) {
         setError('Password must be at least 6 characters.');
@@ -64,11 +68,38 @@ export default function RegisterScreen() {
       return;
     }
 
-    setError('');
-    router.push({
-      pathname: '/verify' as never,
-      params: { phone: mobile.trim(), email: email.trim(), mode: 'register' },
-    });
+    try {
+      setLoading(true);
+      setError('');
+      const result = await registerAccount({
+        full_name: fullName.trim(),
+        mobile: mobile.trim(),
+        email: email.trim(),
+        city: city.trim(),
+        state: state.trim(),
+        pin_code: pinCode.trim(),
+        password: password || undefined,
+        accepted_terms: acceptedTerms,
+      });
+
+      router.push({
+        pathname: '/verify' as never,
+        params: {
+          phone: result.mobile,
+          email: result.email || email.trim(),
+          mode: 'register',
+          ...(result.dev_otp ? { devOtp: result.dev_otp } : {}),
+        },
+      });
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : 'Unable to reach the server. Is the backend running?';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -90,7 +121,8 @@ export default function RegisterScreen() {
             <View style={styles.copy}>
               <Text style={styles.title}>Create account</Text>
               <Text style={styles.subtitle}>
-                Sign up to list vehicles, track inquiries, and close deals.
+                Sign up to list vehicles, track inquiries, and close deals. We will email a
+                one-time code to verify your address.
               </Text>
             </View>
 
@@ -151,7 +183,8 @@ export default function RegisterScreen() {
                 style={styles.input}
               />
               <Text style={styles.optionalLabel}>
-                Password / PIN <Text style={styles.optionalHint}>(optional — for email or mobile login)</Text>
+                Password / PIN{' '}
+                <Text style={styles.optionalHint}>(optional — for email or mobile login)</Text>
               </Text>
               <TextInput
                 placeholder="Password / PIN (optional)"
@@ -191,7 +224,7 @@ export default function RegisterScreen() {
               {error ? <Text style={styles.error}>{error}</Text> : null}
 
               <PrimaryButton
-                label="Continue with OTP"
+                label={loading ? 'Sending OTP…' : 'Continue with email OTP'}
                 onPress={handleCreateAccount}
                 style={styles.button}
               />

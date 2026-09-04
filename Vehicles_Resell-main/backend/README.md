@@ -7,10 +7,14 @@ cd backend
 .\.venv\Scripts\Activate.ps1
 py manage.py migrate
 py manage.py createsuperuser
-py manage.py runserver
+# Bind to all interfaces so a physical phone on Wi‑Fi can reach the API:
+py manage.py runserver 0.0.0.0:8000
 ```
 
-API: `http://127.0.0.1:8000/`
+API (this PC): `http://127.0.0.1:8000/`  
+API (phone on same Wi‑Fi): `http://<your-lan-ip>:8000/` (e.g. `http://192.168.1.45:8000`)
+
+In the mobile app, set `EXPO_PUBLIC_API_URL` in `.env`, or rely on auto-detect from Expo’s LAN IP.
 
 ### OTP by email (Azure Graph)
 
@@ -35,6 +39,7 @@ In DEBUG, the API also returns `dev_otp`.
 |--------|------|------|
 | POST | `/api/auth/register/` | Public |
 | POST | `/api/auth/register/verify-otp/` | Public |
+| POST | `/api/auth/register/resend-otp/` | Public |
 | POST | `/api/auth/login/otp/request/` | Public |
 | POST | `/api/auth/login/otp/verify/` | Public |
 | POST | `/api/auth/login/password/` | Public |
